@@ -64,7 +64,7 @@ fi
 
 if command -v pm2 >/dev/null 2>&1; then
 
-    for APP in cncjs fileserver dashboard terminal; do
+    for APP in cncjs pywebcnc-fileserver pywebcnc-dashboard pywebcnc-terminal; do
 
         if pm2 describe "$APP" >/dev/null 2>&1; then
 
@@ -125,6 +125,7 @@ sudo rm -rf /usr/local/lib/node_modules/.cncjs-* 2>/dev/null || true
 # ------------------------------------------------------------
 # Remove our PyWebCNC directories
 # ------------------------------------------------------------
+cd ~
 
 DIRS=(
     "$HOME/dashboard"
@@ -304,7 +305,7 @@ echo " Listening ports"
 echo "============================================================"
 
 ss -ltnp 2>/dev/null |
-    grep -E ':80 |:8000 |:8088 |:8080 |:8090 ' ||
+    grep -E ':8000 |:8088 |:8080 |:8090 ' ||
     echo "No CNC/PyWebCNC ports currently listening."
 
 
