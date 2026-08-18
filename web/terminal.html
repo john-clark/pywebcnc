@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DietPi Terminal</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+<style>
+*{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#111}#terminal{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;padding:6px;background:#111}#status{position:fixed;top:6px;right:8px;padding:3px 7px;background:rgba(30,30,30,.85);color:#aaa;font-family:monospace;font-size:12px;border-radius:3px;z-index:100}#status.connected{color:#6f6}#status.disconnected{color:#f66}.xterm{width:100%;height:100%}.xterm-viewport{overflow-y:auto!important}
+</style>
+</head>
+<body>
+<div id="status">Connecting...</div>
+<div id="terminal"></div>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script>
+const terminal=new Terminal({cursorBlink:true,scrollback:10000,fontFamily:'monospace',fontSize:14,convertEol:false,theme:{background:'#111111',foreground:'#eeeeee',cursor:'#ffffff'}});
+const fitAddon=new FitAddon.FitAddon();
+terminal.loadAddon(fitAddon);
+terminal.open(document.getElementById('terminal'));
+const status=document.getElementById('status');
+let socket=null;
+function sendResize(){if(!socket||socket.readyState!==WebSocket.OPEN)return;socket.send(JSON.stringify({type:'resize',rows:terminal.rows,cols:terminal.cols}));}
+function fitTerminal(){try{fitAddon.fit();sendResize();}catch(e){console.error('Terminal resize error:',e);}}
+function connect(){const protocol=window.location.protocol==='https:'?'wss:':'ws:';const websocketURL=protocol+'//'+window.location.host+'/terminal-ws';status.textContent='Connecting...';status.className='';socket=new WebSocket(websocketURL);socket.onopen=function(){status.textContent='Connected';status.className='connected';terminal.focus();fitTerminal();};socket.onmessage=function(event){if(typeof event.data==='string'){terminal.write(event.data)}else{terminal.write(new Uint8Array(event.data))}};socket.onclose=function(){status.textContent='Disconnected';status.className='disconnected';terminal.write('\r\n\r\n\x1b[31m[Connection closed]\x1b[0m\r\n')};socket.onerror=function(error){status.textContent='Connection error';status.className='disconnected';console.error('WebSocket error:',error)}}
+terminal.onData(function(data){if(socket&&socket.readyState===WebSocket.OPEN){socket.send(JSON.stringify({type:'input',data:data}))}});
+window.addEventListener('resize',fitTerminal);
+new ResizeObserver(fitTerminal).observe(document.getElementById('terminal'));
+document.addEventListener('click',function(){terminal.focus()});
+setTimeout(fitTerminal,100);
+connect();
+</script>
+</body>
+</html>
