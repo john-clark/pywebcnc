@@ -349,7 +349,7 @@ run sudo cp "$SCRIPT_DIR/file_server.py" "$INSTALL_DIR/file_server.py" || fail "
 run sudo chmod 0755 "$INSTALL_DIR/dashboard_server.sh" "$INSTALL_DIR/file_server.py"|| fail "Could not make service scripts executable."
 run sudo chown -R "$(id -u):$(id -g)" "$INSTALL_DIR/web" "$VENV_DIR" || fail "Could not set ownership on application files."
 run sudo chown "$(id -u):$(id -g)" "$INSTALL_DIR/terminal_server.py" "$INSTALL_DIR/dashboard_server.sh" "$INSTALL_DIR/file_server.py" || fail "Could not set application file ownership."
-
+run sudo chown -R "$(id -u):$(id -g)" "$INSTALL_DIR" || fail "Could not set ownership on installation directory."
 ok "Application files installed in $INSTALL_DIR"
 
 # ------------------------------------------------------------
