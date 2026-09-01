@@ -422,9 +422,8 @@ run chown "$(id -u):$(id -g)" "$FILESERVER_DIR" || fail "Could not set file serv
 ok "File server directory: $FILESERVER_DIR"
 
 # ------------------------------------------------------------
-# Install JSCut
+# Installing JSCut (Now running via PM2 static server on port 8092)
 # ------------------------------------------------------------
-echo
 echo "============================================================"
 echo " Installing JSCut"
 echo "============================================================"
@@ -486,12 +485,7 @@ if [[ -d "$SRC_DIR" ]]; then
   
   sudo chown -R "$(id -u):$(id -g)" "$GRID_APPS_DIR"
   
-  log "Registering Kiri:Moto server with PM2 on port 8091..."
-  pm2 delete pywebcnc-kirimoto 2>/dev/null || true
-  pm2 start gs-app-server --name "pywebcnc-kirimoto" --cwd "$GRID_APPS_DIR" -- --port 8091
-  pm2 save
-  
-  ok "Kiri:Moto installed and running via gs-app-server on port 8091"
+  ok "Kiri:Moto grid-apps installed in $GRID_APPS_DIR"
 else
   warn "Extracted grid-apps source directory missing or invalid."
 fi
@@ -553,7 +547,7 @@ echo "============================================================"
 echo " Configuring pywebcnc PM2 services"
 echo "============================================================"
 
-for APP in cncjs pywebcnc-fileserver pywebcnc-dashboard pywebcnc-terminal; do
+for APP in cncjs pywebcnc-fileserver pywebcnc-dashboard pywebcnc-terminal pywebcnc-kirimoto pywebcnc-jscut; do
   pm2 delete "$APP" >/dev/null 2>&1 || true
 done
 
@@ -592,6 +586,21 @@ module.exports = {
     script: "terminal_server.py",
     interpreter: "$VENV_DIR/bin/python",
     cwd: "$INSTALL_DIR",
+    env: {
+      PYTHONUNBUFFERED: "1"
+    }
+  },
+  {
+    name: "pywebcnc-kirimoto",
+    script: "gs-app-server",
+    args: ["--port", "8091"],
+    cwd: "/opt/pywebcnc/web/grid-apps"
+  },
+  {
+    name: "pywebcnc-jscut",
+    script: "python3",
+    args: ["-m", "http.server", "8092"],
+    cwd: "$JSCUT_DIR",
     env: {
       PYTHONUNBUFFERED: "1"
     }
