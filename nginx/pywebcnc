@@ -4,13 +4,6 @@ server {
 
     server_name _;
 
-    # Local JSCut static application
-    location /jscut/ {
-        alias /opt/pywebcnc/jscut/;
-        index jscut.html;
-        try_files $uri $uri/ /jscut/jscut.html;
-    }
-
     # Main dashboard
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -19,6 +12,16 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /jscut/ {
+        alias /opt/pywebcnc/jscut/;
+        try_files $uri $uri/ =404;
+    }
+
+    location /kiri/ {
+        alias /opt/pywebcnc/web/kiri/;
+        try_files $uri $uri/ =404;
     }
 
     # Browser terminal WebSocket -> Python PTY server
