@@ -26,11 +26,10 @@ The installer is intended to be run by the user that should own PM2, normally `d
 
 ## Install
 
-Clone the repository and run:
+This line clones the repository, runs the installer, and saves a log file. :
 
 ```bash
-cd pywebcnc
-./install.sh
+git clone https://github.com/john-clark/pywebcnc.git && cd pywebcnc && bash install.sh 2>&1 | tee install.log
 ```
 
 The installer uses `sudo` for apt, Nginx, and deployment into `/opt/pywebcnc`. It must not be run as root.
