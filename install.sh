@@ -466,7 +466,7 @@ GRID_APPS_DIR="/opt/pywebcnc/web/grid-apps"
 SKIP_KIRIMOTO=false
 
 if [[ "$CPU_TYPE" == "armv6" ]]; then
-  warn "ARMv6 architecture detected. Skipping Kiri:Moto installation (incompatible with modern WASM/Node modules)."
+  warn "ARMv6 architecture detected. Skipping Kiri:Moto installation."
   SKIP_KIRIMOTO=true
 else
   KIRIMOTO_URL="https://github.com/GridSpace/grid-apps/archive/refs/heads/master.zip"
@@ -483,9 +483,9 @@ else
       sudo mkdir -p "$GRID_APPS_DIR"
       sudo cp -a "$SRC_DIR/." "$GRID_APPS_DIR/"
       
-      log "Installing grid-apps npm dependencies..."
+      log "Installing grid-apps dependencies with workspace support..."
       cd "$GRID_APPS_DIR"
-      npm install --omit=dev || npm install
+      npm install --include-workspace-root || npm install --legacy-peer-deps
       
       sudo chown -R "$(id -u):$(id -g)" "$GRID_APPS_DIR"
       ok "Kiri:Moto grid-apps installed in $GRID_APPS_DIR"
