@@ -4,6 +4,8 @@
 # Run from the cloned repository as the account that should own/run PM2
 # (normally the dietpi user). Do NOT run as root.
 
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+
 set -u
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -127,6 +129,46 @@ if ! sudo -n true >/dev/null 2>&1; then
 else
     ok "sudo access verified."
 fi
+
+# -------------------------------------------------------------
+# Detect CPU architecture
+# -------------------------------------------------------------
+
+MACHINE="$(uname -m)"
+
+case "$MACHINE" in
+    armv6l|armv6*)
+        CPU_TYPE="armv6"
+        NODE_PLATFORM_ARCH="armv6l"
+        warn "ARMv6 detected. Standard Debian/DietPi nodejs packages require ARMv7+ instructions and will fail."
+        ;;
+    armv7l|armv7*)
+        CPU_TYPE="armv7"
+        NODE_PLATFORM_ARCH="armv7l"
+        INSTALL_NODE_VIA_APT=true
+        ;;
+    aarch64|arm64)
+        CPU_TYPE="arm64"
+        NODE_PLATFORM_ARCH="arm64"
+        INSTALL_NODE_VIA_APT=true
+        ;;
+    x86_64|amd64)
+        CPU_TYPE="amd64"
+        NODE_PLATFORM_ARCH="x64"
+        INSTALL_NODE_VIA_APT=true
+        ;;
+    i386|i686)
+        CPU_TYPE="i386"
+        NODE_PLATFORM_ARCH="x86"
+        INSTALL_NODE_VIA_APT=true
+        ;;
+    *)
+        fail "Unsupported CPU architecture: $MACHINE"
+        ;;
+esac
+
+log "Detected machine: $MACHINE"
+log "Selected CPU type: $CPU_TYPE"
 
 # ------------------------------------------------------------
 # Repository preflight -- BEFORE making system changes
@@ -282,46 +324,59 @@ run sudo "$VENV_DIR/bin/python" -m pip install -r "$SCRIPT_DIR/requirements.txt"
 ok "Python requirements installed."
 
 # ------------------------------------------------------------
-# Verify Node.js/npm and install CNCjs
+# Install Node.js (Standalone Binary - No Apt Bloat)
 # ------------------------------------------------------------
 echo
+echo "============================================================"
+echo " Installing Node.js and npm"
+echo "============================================================"
+
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+    log "Node.js not found. Installing standalone binary for architecture: $NODE_PLATFORM_ARCH..."
+
+    # Select appropriate Node.js version based on architecture compatibility
+    if [[ "$CPU_TYPE" == "armv6" ]]; then
+        # v16.x is the final major release supporting ARMv6 (Pi Zero / Model B)
+        NODE_VERSION="v16.20.2"
+    else
+        # Stable LTS version for armv7, arm64, amd64, i386
+        NODE_VERSION="v18.19.0"
+    fi
+
+    NODE_TARBALL="node-$NODE_VERSION-linux-$NODE_PLATFORM_ARCH.tar.gz"
+    NODE_URL="https://nodejs.org/dist/$NODE_VERSION/$NODE_TARBALL"
+
+    TMP_NODE="$(mktemp -d)"
+    log "Downloading $NODE_URL..."
+    run curl -fL --retry 3 --connect-timeout 15 "$NODE_URL" -o "$TMP_NODE/$NODE_TARBALL" || fail "Failed to download Node.js binary."
+
+    log "Extracting Node.js to /usr/local..."
+    run sudo tar -xzf "$TMP_NODE/$NODE_TARBALL" -C /usr/local --strip-components=1 || fail "Failed to extract Node.js binaries."
+    rm -rf "$TMP_NODE"
+
+    ok "Node.js $NODE_VERSION installed successfully."
+else
+    ok "Existing Node.js detected: $(node --version)"
+fi
+
+# Verify node and npm are fully operational
+NODE_VERSION_CHECK="$(node --version)"
+NPM_VERSION_CHECK="$(npm --version)"
+log "Node.js: $NODE_VERSION_CHECK"
+log "npm: $NPM_VERSION_CHECK"
+
+# ------------------------------------------------------------
+# install CNCjs
+# ------------------------------------------------------------
 echo "============================================================"
 echo " Installing CNCjs"
 echo "============================================================"
 
-if ! command -v node >/dev/null 2>&1; then
-    fail "Node.js is required to install CNCjs. This ARMv6 installation needs an ARMv6-compatible Node.js build."
-fi
-
-if ! command -v npm >/dev/null 2>&1; then
-    fail "npm is required to install CNCjs."
-fi
-
-NODE_VERSION="$(node --version)"
-log "Node.js: $NODE_VERSION"
-log "npm: $(npm --version)"
-
-if ! node -e 'process.exit(require("semver").gte(process.version, "14.0.0") ? 0 : 1)' 2>/dev/null; then
-    warn "Unable to validate Node version with semver; checking major version directly."
-    NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
-    if [[ ! "$NODE_MAJOR" =~ ^[0-9]+$ ]] || (( NODE_MAJOR < 14 )); then
-        fail "CNCjs $CNCJS_VERSION requires Node.js >=14; found $NODE_VERSION."
-    fi
-fi
-
-if npm list -g --depth=0 cncjs >/dev/null 2>&1; then
-    INSTALLED_CNCJS="$(npm list -g --depth=0 cncjs --parseable 2>/dev/null | tail -n 1 || true)"
-    if npm list -g --depth=0 cncjs 2>/dev/null | grep -q "cncjs@$CNCJS_VERSION"; then
-        ok "CNCjs $CNCJS_VERSION already installed."
-    else
-        log "Replacing existing CNCjs with ARMv6-compatible CNCjs $CNCJS_VERSION."
-        npm uninstall -g cncjs >/dev/null 2>&1 || true
-        run npm install -g "cncjs@$CNCJS_VERSION" --unsafe-perm --legacy-peer-deps || fail "CNCjs installation failed."
-        ok "CNCjs $CNCJS_VERSION installed."
-    fi
+if npm list -g --depth=0 cncjs 2>/dev/null | grep -q "cncjs@$CNCJS_VERSION"; then
+    ok "CNCjs $CNCJS_VERSION already installed."
 else
     log "Installing CNCjs $CNCJS_VERSION..."
-    run npm install -g "cncjs@$CNCJS_VERSION" --unsafe-perm --legacy-peer-deps || fail "CNCjs installation failed."
+    run sudo npm install -g "cncjs@$CNCJS_VERSION" --unsafe-perm --legacy-peer-deps || fail "CNCjs installation failed."
     ok "CNCjs $CNCJS_VERSION installed."
 fi
 
@@ -468,11 +523,11 @@ echo "============================================================"
 
 if ! command -v pm2 >/dev/null 2>&1; then
     if ! command -v npm >/dev/null 2>&1; then
-        fail "PM2 is not installed and npm is unavailable. Install an ARM-compatible Node.js/npm first."
+        fail "PM2 is not installed and npm is unavailable."
     fi
 
-    log "PM2 is not installed. Installing PM2 with existing npm..."
-    run npm install -g pm2 || fail "PM2 installation failed."
+    log "PM2 is not installed. Installing PM2 globally..."
+    run sudo npm install -g pm2 || fail "PM2 installation failed."
     ok "PM2 installed."
 else
     ok "Using existing PM2: $(command -v pm2)"
