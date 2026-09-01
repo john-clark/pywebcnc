@@ -474,7 +474,7 @@ log "Downloading Kiri:Moto: $KIRIMOTO_ARCHIVE_URL"
 if run curl -fL --retry 3 --connect-timeout 15 "$KIRIMOTO_ARCHIVE_URL" -o "$TMP_KIRI/kirimoto.zip"; then
   if run unzip -q "$TMP_KIRI/kirimoto.zip" -d "$TMP_KIRI"; then
     KIRIMOTO_SRC="$TMP_KIRI/kirimoto-${KIRIMOTO_VERSION}"
-    if [[ -d "$KIRIMOTO_SRC" && -s "$KIRIMOTO_SRC/index.html" ]]; then
+    if [[ -d "$KIRIMOTO_SRC" && (-s "$KIRIMOTO_SRC/index.html" || -d "$KIRIMOTO_SRC/kiri") ]]; then
       sudo rm -rf "$KIRIMOTO_DIR"
       sudo mkdir -p "$KIRIMOTO_DIR"
       run sudo cp -a "$KIRIMOTO_SRC/." "$KIRIMOTO_DIR/"
@@ -612,6 +612,8 @@ echo "============================================================"
 echo " Final verification"
 echo "============================================================"
 
+log "Waiting for services to start up..."
+sleep 10
 log "Checking PM2 services..."
 
 python3 -c '
