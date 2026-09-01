@@ -460,29 +460,40 @@ cleanup_jscut
 # Installing Kiri:Moto
 # ------------------------------------------------------------
 echo "============================================================"
-echo " Installing Kiri:Moto"
+echo " Installing Kiri:Moto via @gridspace/app-server"
 echo "============================================================"
 
 KIRIMOTO_URL="https://github.com/GridSpace/grid-apps/archive/refs/heads/master.zip"
 TMP_KIRI="/tmp/grid-apps"
-KIRIMOTO_DIR="/opt/pywebcnc/web/kiri"
+GRID_APPS_DIR="/opt/pywebcnc/web/grid-apps"
 
-log "Downloading Kiri:Moto from grid-apps..."
+log "Downloading and installing grid-apps for Kiri:Moto..."
 rm -rf "$TMP_KIRI"
 mkdir -p "$TMP_KIRI"
 curl -L "$KIRIMOTO_URL" -o "$TMP_KIRI/master.zip"
 unzip -q "$TMP_KIRI/master.zip" -d "$TMP_KIRI"
 
-SRC_DIR="$TMP_KIRI/grid-apps-master/web/kiri"
+SRC_DIR="$TMP_KIRI/grid-apps-master"
 
 if [[ -d "$SRC_DIR" ]]; then
-  sudo rm -rf "$KIRIMOTO_DIR"
-  sudo mkdir -p "$KIRIMOTO_DIR"
-  sudo cp -a "$SRC_DIR/." "$KIRIMOTO_DIR/"
-  sudo chown -R "$(id -u):$(id -g)" "$KIRIMOTO_DIR"
-  ok "Kiri:Moto installed in $KIRIMOTO_DIR"
+  sudo rm -rf "$GRID_APPS_DIR"
+  sudo mkdir -p "$GRID_APPS_DIR"
+  sudo cp -a "$SRC_DIR/." "$GRID_APPS_DIR/"
+  
+  log "Installing grid-apps npm dependencies and WASM binaries..."
+  cd "$GRID_APPS_DIR"
+  npm install --production
+  
+  sudo chown -R "$(id -u):$(id -g)" "$GRID_APPS_DIR"
+  
+  log "Registering Kiri:Moto server with PM2 on port 8091..."
+  pm2 delete pywebcnc-kirimoto 2>/dev/null || true
+  pm2 start gs-app-server --name "pywebcnc-kirimoto" --cwd "$GRID_APPS_DIR" -- --port 8091
+  pm2 save
+  
+  ok "Kiri:Moto installed and running via gs-app-server on port 8091"
 else
-  warn "Extracted Kiri:Moto source directory missing or invalid."
+  warn "Extracted grid-apps source directory missing or invalid."
 fi
 
 # ------------------------------------------------------------
