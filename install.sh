@@ -322,7 +322,7 @@ run sudo "$VENV_DIR/bin/python" -m pip install -r "$SCRIPT_DIR/requirements.txt"
 ok "Python requirements installed."
 
 # ------------------------------------------------------------
-# Install Node.js (Standalone Binary - Architecture Aware)
+# Install Node.js (Upgraded to v22.12.0 for grid-apps workspace support)
 # ------------------------------------------------------------
 echo
 echo "============================================================"
@@ -335,7 +335,7 @@ if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   if [[ "$CPU_TYPE" == "armv6" ]]; then
     NODE_VERSION="v16.20.2"
   else
-    NODE_VERSION="v20.11.0"
+    NODE_VERSION="v22.12.0"
   fi
 
   NODE_TARBALL="node-$NODE_VERSION-linux-$NODE_PLATFORM_ARCH.tar.gz"
