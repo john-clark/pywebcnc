@@ -457,39 +457,33 @@ fi
 cleanup_jscut
 
 # ------------------------------------------------------------
-# Install Kiri:Moto
+# Installing Kiri:Moto
 # ------------------------------------------------------------
-echo
 echo "============================================================"
 echo " Installing Kiri:Moto"
 echo "============================================================"
 
-TMP_KIRI="$(mktemp -d)"
-cleanup_kiri() {
-  rm -rf "$TMP_KIRI"
-}
+KIRIMOTO_URL="https://github.com/GridSpace/grid-apps/archive/refs/heads/master.zip"
+TMP_KIRI="/tmp/grid-apps"
+KIRIMOTO_DIR="/opt/pywebcnc/web/kiri"
 
-KIRIMOTO_ARCHIVE_URL="https://github.com/GridSpace/kirimoto/archive/refs/heads/${KIRIMOTO_VERSION}.zip"
-log "Downloading Kiri:Moto: $KIRIMOTO_ARCHIVE_URL"
-if run curl -fL --retry 3 --connect-timeout 15 "$KIRIMOTO_ARCHIVE_URL" -o "$TMP_KIRI/kirimoto.zip"; then
-  if run unzip -q "$TMP_KIRI/kirimoto.zip" -d "$TMP_KIRI"; then
-    KIRIMOTO_SRC="$TMP_KIRI/kirimoto-${KIRIMOTO_VERSION}"
-    if [[ -d "$KIRIMOTO_SRC" && (-s "$KIRIMOTO_SRC/index.html" || -d "$KIRIMOTO_SRC/kiri") ]]; then
-      sudo rm -rf "$KIRIMOTO_DIR"
-      sudo mkdir -p "$KIRIMOTO_DIR"
-      run sudo cp -a "$KIRIMOTO_SRC/." "$KIRIMOTO_DIR/"
-      run sudo chown -R "$(id -u):$(id -g)" "$KIRIMOTO_DIR"
-      ok "Kiri:Moto installed in $KIRIMOTO_DIR"
-    else
-      warn "Extracted Kiri:Moto source directory missing or invalid."
-    fi
-  else
-    warn "Kiri:Moto archive extraction failed."
-  fi
+log "Downloading Kiri:Moto from grid-apps..."
+rm -rf "$TMP_KIRI"
+mkdir -p "$TMP_KIRI"
+curl -L "$KIRIMOTO_URL" -o "$TMP_KIRI/master.zip"
+unzip -q "$TMP_KIRI/master.zip" -d "$TMP_KIRI"
+
+SRC_DIR="$TMP_KIRI/grid-apps-master/web/kiri"
+
+if [[ -d "$SRC_DIR" ]]; then
+  sudo rm -rf "$KIRIMOTO_DIR"
+  sudo mkdir -p "$KIRIMOTO_DIR"
+  sudo cp -a "$SRC_DIR/." "$KIRIMOTO_DIR/"
+  sudo chown -R "$(id -u):$(id -g)" "$KIRIMOTO_DIR"
+  ok "Kiri:Moto installed in $KIRIMOTO_DIR"
 else
-  warn "Kiri:Moto download failed."
+  warn "Extracted Kiri:Moto source directory missing or invalid."
 fi
-cleanup_kiri
 
 # ------------------------------------------------------------
 # Nginx configuration
@@ -600,7 +594,7 @@ run sudo chown "$(id -u):$(id -g)" "$ECOSYSTEM_FILE" || fail "Could not set owne
 log "Starting PM2 apps via ecosystem file..."
 run pm2 start "$ECOSYSTEM_FILE" || fail "Could not start PM2 services from ecosystem file."
 
-ok "All PM2 services started successfully."
+ok "All PM2 services started."
 
 run pm2 save || fail "Could not save PM2 process list."
 
@@ -615,6 +609,7 @@ echo "============================================================"
 log "Waiting for services to start up..."
 sleep 10
 log "Checking PM2 services..."
+pm2 status
 
 python3 -c '
 import subprocess, json, sys
