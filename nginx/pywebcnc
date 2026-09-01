@@ -4,6 +4,40 @@ server {
 
     server_name _;
 
+    # Local JSCut static application proxied to port 8092
+    location /jscut/ {
+        proxy_pass http://127.0.0.1:8092/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Kiri:Moto application proxied to gs-app-server on port 8091
+    location /kiri/ {
+        proxy_pass http://127.0.0.1:8091/kiri/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Kiri:Moto global asset routes managed by gs-app-server (with JSCut safety guard)
+    location ~ ^/(lib|font|moto|boot|mesh|obj|void)/ {
+        if ($uri ~* "^/jscut/") {
+            return 404;
+        }
+        
+        proxy_pass http://127.0.0.1:8091;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     # Main dashboard
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -12,16 +46,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /jscut/ {
-        alias /opt/pywebcnc/jscut/;
-        try_files $uri $uri/ =404;
-    }
-
-    location /kiri/ {
-        alias /opt/pywebcnc/web/kiri/;
-        try_files $uri $uri/ =404;
     }
 
     # Browser terminal WebSocket -> Python PTY server
