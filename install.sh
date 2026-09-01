@@ -647,7 +647,7 @@ else
 fi
 
 log "Checking file server HTTP service..."
-if curl -fsSI "http://127.0.0.1:${FILESERVER_PORT}/" >/dev/null; then
+if curl -fsS "http://127.0.0.1:${FILESERVER_PORT}/" >/dev/null; then
   ok "File server is responding on 127.0.0.1:${FILESERVER_PORT}"
 else
   err "File server did not respond on 127.0.0.1:${FILESERVER_PORT}"
