@@ -549,7 +549,7 @@ fi
 ok "PM2 daemon is responding."
 
 # ------------------------------------------------------------
-# Configuring PM2 Ecosystem ( Conditionally registers Kiri:Moto )
+# Configuring PM2 Ecosystem (Fixed JSON String Escaping)
 # ------------------------------------------------------------
 echo
 echo "============================================================"
@@ -564,60 +564,54 @@ ECOSYSTEM_FILE="$INSTALL_DIR/ecosystem.config.js"
 
 log "Creating PM2 ecosystem configuration at $ECOSYSTEM_FILE..."
 
-# Build apps JSON array dynamically based on whether Kiri:Moto is skipped
-PM2_APPS_JSON='[
-  {
-    "name": "cncjs",
-    "script": "'$(command -v cncjs)'",
-    "args": ["--port", "'$CNCJS_PORT'"],
-    "cwd": "'$HOME'"
-  },
-  {
-    "name": "pywebcnc-fileserver",
-    "script": "file_server.py",
-    interpreter: "'$VENV_DIR'/bin/python",
-    "cwd": "'$INSTALL_DIR'",
-    "env": { "PYTHONUNBUFFERED": "1" }
-  },
-  {
-    "name": "pywebcnc-dashboard",
-    "script": "dashboard_server.sh",
-    "interpreter": "bash",
-    "cwd": "'$INSTALL_DIR'",
-    "env": { "PYTHONUNBUFFERED": "1" }
-  },
-  {
-    "name": "pywebcnc-terminal",
-    "script": "terminal_server.py",
-    "interpreter": "'$VENV_DIR'/bin/python",
-    "cwd": "'$INSTALL_DIR'",
-    "env": { "PYTHONUNBUFFERED": "1" }
-  },
-  {
-    "name": "pywebcnc-jscut",
-    "script": "python3",
-    "args": ["-m", "http.server", "8092"],
-    "cwd": "'$JSCUT_DIR'",
-    "env": { "PYTHONUNBUFFERED": "1" }
-  }'
+CNCJS_PATH="$(command -v cncjs)"
 
-if [ "$SKIP_KIRIMOTO" = false ]; then
-  PM2_APPS_JSON="$PM2_APPS_JSON ,
-  {
-    "name": "pywebcnc-kirimoto",
-    "script": \"app.js\",
-    "args": [\"--port\", \"8091\"],
-    "cwd": \"/opt/pywebcnc/web/grid-apps\",
-    \"interpreter\": \"node\"
-  }"
-fi
-
-PM2_APPS_JSON="$PM2_APPS_JSON
-]"
-
+# Build apps JSON array safely using single-quoted HEREDOC for node content
 sudo tee "$ECOSYSTEM_FILE" > /dev/null <<EOF
 module.exports = {
-  apps: $PM2_APPS_JSON
+  apps: [
+    {
+      name: "cncjs",
+      script: "$CNCJS_PATH",
+      args: ["--port", "$CNCJS_PORT"],
+      cwd: "$HOME"
+    },
+    {
+      name: "pywebcnc-fileserver",
+      script: "file_server.py",
+      interpreter: "$VENV_DIR/bin/python",
+      cwd: "$INSTALL_DIR",
+      env: { PYTHONUNBUFFERED: "1" }
+    },
+    {
+      name: "pywebcnc-dashboard",
+      script: "dashboard_server.sh",
+      interpreter: "bash",
+      cwd: "$INSTALL_DIR",
+      env: { PYTHONUNBUFFERED: "1" }
+    },
+    {
+      name: "pywebcnc-terminal",
+      script: "terminal_server.py",
+      interpreter: "$VENV_DIR/bin/python",
+      cwd: "$INSTALL_DIR",
+      env: { PYTHONUNBUFFERED: "1" }
+    },
+    {
+      name: "pywebcnc-jscut",
+      script: "python3",
+      args: ["-m", "http.server", "8092"],
+      cwd: "$JSCUT_DIR",
+      env: { PYTHONUNBUFFERED: "1" }
+    }$([ "$SKIP_KIRIMOTO" = false ] && echo ",
+    {
+      name: \"pywebcnc-kirimoto\",
+      script: \"app.js\",
+      args: [\"--port\", \"8091\"],
+      cwd: \"/opt/pywebcnc/web/grid-apps\",
+      interpreter: \"node\"
+    }")
+  ]
 };
 EOF
 
