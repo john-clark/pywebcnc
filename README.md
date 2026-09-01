@@ -32,12 +32,12 @@ This line clones the repository, runs the installer, and saves a log file. :
 git clone https://github.com/john-clark/pywebcnc.git && cd pywebcnc && bash install.sh 2>&1 | tee install.log
 ```
 
-The installer uses `sudo` for apt, Nginx, and deployment into `/opt/pywebcnc`. It must not be run as root.
+The installer uses `sudo` for deployment but must not be run as root. If you are not using a dietpi you should make sure sudo is setup correctly.
 
-After installation:
+After installation the application should be available on the machine web server default port 80:
 
 ```text
-http://PI-IP/
+http://{ip}/
 ```
 
 CNCjs and the existing file server are expected at:
