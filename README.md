@@ -14,13 +14,20 @@ A small web dashboard for a Raspberry Pi CNC controller.
 The dashboard provides four tabs:
 
 - Home
+- jsCUT
 - CNCjs on port 8000
+- Kiri:moto
 - Files on port 8088
 - Terminal through `/terminal-ws`
 
+TODO
+
+ - Web based Firmware builder for GRBLhal
+ - Dashboard live status updates
+
 ## Requirements
 
-The target system should already have a working Node.js/npm installation if PM2 is not installed. This is intentional for ARMv6 systems where distro Node packages may not be suitable.
+~~The target system should already have a working Node.js/npm installation if PM2 is not installed. This is intentional for ARMv6 systems where distro Node packages may not be suitable.~~
 
 The installer is intended to be run by the user that should own PM2, normally `dietpi`.
 
@@ -34,25 +41,14 @@ git clone https://github.com/john-clark/pywebcnc.git && cd pywebcnc && bash inst
 
 The installer uses `sudo` for deployment but must not be run as root. If you are not using a dietpi you should make sure sudo is setup correctly.
 
-After installation the application should be available on the machine web server default port 80:
-
-```text
-http://{ip}/
-```
-
-CNCjs and the existing file server are expected at:
-
-```text
-http://PI-IP:8000/
-http://PI-IP:8088/
-```
+After installation the application should be available on the machine web server default port 80.
 
 ## PM2 boot persistence
 
-The installer prints the PM2 startup command appropriate for the current user. Run that command with sudo, then:
+The installer prints the PM2 startup command appropriate for the current user. You can check the service status with:
 
 ```bash
-pm2 save
+pm2 status
 ```
 
 ## Notes
@@ -62,7 +58,7 @@ The terminal page currently loads xterm.js and xterm-addon-fit from jsDelivr. If
 The file server and CNCjs are intentionally not installed by this repository; they are existing services consumed by the dashboard.
 
 
-## CAM / SVG to G-code
+### CAM / SVG to G-code
 
 PyWebCNC installs a local copy of JSCut from the upstream `gh-pages` branch and serves it at:
 
