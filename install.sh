@@ -322,7 +322,7 @@ run sudo "$VENV_DIR/bin/python" -m pip install -r "$SCRIPT_DIR/requirements.txt"
 ok "Python requirements installed."
 
 # ------------------------------------------------------------
-# Install Node.js (Standalone Binary - No Apt Bloat)
+# Install Node.js (Standalone Binary - Architecture Aware)
 # ------------------------------------------------------------
 echo
 echo "============================================================"
@@ -335,7 +335,7 @@ if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   if [[ "$CPU_TYPE" == "armv6" ]]; then
     NODE_VERSION="v16.20.2"
   else
-    NODE_VERSION="v18.19.0"
+    NODE_VERSION="v20.11.0"
   fi
 
   NODE_TARBALL="node-$NODE_VERSION-linux-$NODE_PLATFORM_ARCH.tar.gz"
@@ -422,7 +422,7 @@ run chown "$(id -u):$(id -g)" "$FILESERVER_DIR" || fail "Could not set file serv
 ok "File server directory: $FILESERVER_DIR"
 
 # ------------------------------------------------------------
-# Installing JSCut (Now running via PM2 static server on port 8092)
+# Installing JSCut (Static HTML/JS tool)
 # ------------------------------------------------------------
 echo "============================================================"
 echo " Installing JSCut"
@@ -456,38 +456,47 @@ fi
 cleanup_jscut
 
 # ------------------------------------------------------------
-# Installing Kiri:Moto
+# Installing Kiri:Moto (Skipped on ARMv6 due to native/WASM constraints)
 # ------------------------------------------------------------
 echo "============================================================"
 echo " Installing Kiri:Moto via @gridspace/app-server"
 echo "============================================================"
 
-KIRIMOTO_URL="https://github.com/GridSpace/grid-apps/archive/refs/heads/master.zip"
-TMP_KIRI="/tmp/grid-apps"
 GRID_APPS_DIR="/opt/pywebcnc/web/grid-apps"
+SKIP_KIRIMOTO=false
 
-log "Downloading and installing grid-apps for Kiri:Moto..."
-rm -rf "$TMP_KIRI"
-mkdir -p "$TMP_KIRI"
-curl -L "$KIRIMOTO_URL" -o "$TMP_KIRI/master.zip"
-unzip -q "$TMP_KIRI/master.zip" -d "$TMP_KIRI"
-
-SRC_DIR="$TMP_KIRI/grid-apps-master"
-
-if [[ -d "$SRC_DIR" ]]; then
-  sudo rm -rf "$GRID_APPS_DIR"
-  sudo mkdir -p "$GRID_APPS_DIR"
-  sudo cp -a "$SRC_DIR/." "$GRID_APPS_DIR/"
-  
-  log "Installing grid-apps npm dependencies and WASM binaries..."
-  cd "$GRID_APPS_DIR"
-  npm install --production
-  
-  sudo chown -R "$(id -u):$(id -g)" "$GRID_APPS_DIR"
-  
-  ok "Kiri:Moto grid-apps installed in $GRID_APPS_DIR"
+if [[ "$CPU_TYPE" == "armv6" ]]; then
+  warn "ARMv6 architecture detected. Skipping Kiri:Moto installation (incompatible with modern WASM/Node modules)."
+  SKIP_KIRIMOTO=true
 else
-  warn "Extracted grid-apps source directory missing or invalid."
+  KIRIMOTO_URL="https://github.com/GridSpace/grid-apps/archive/refs/heads/master.zip"
+  TMP_KIRI="/tmp/grid-apps"
+
+  log "Downloading and installing grid-apps for Kiri:Moto..."
+  rm -rf "$TMP_KIRI"
+  mkdir -p "$TMP_KIRI"
+  
+  if curl -L "$KIRIMOTO_URL" -o "$TMP_KIRI/master.zip" && unzip -q "$TMP_KIRI/master.zip" -d "$TMP_KIRI"; then
+    SRC_DIR="$TMP_KIRI/grid-apps-master"
+    if [[ -d "$SRC_DIR" ]]; then
+      sudo rm -rf "$GRID_APPS_DIR"
+      sudo mkdir -p "$GRID_APPS_DIR"
+      sudo cp -a "$SRC_DIR/." "$GRID_APPS_DIR/"
+      
+      log "Installing grid-apps npm dependencies..."
+      cd "$GRID_APPS_DIR"
+      npm install --omit=dev || npm install
+      
+      sudo chown -R "$(id -u):$(id -g)" "$GRID_APPS_DIR"
+      ok "Kiri:Moto grid-apps installed in $GRID_APPS_DIR"
+    else
+      warn "Extracted grid-apps source directory missing."
+      SKIP_KIRIMOTO=true
+    fi
+  else
+    warn "Failed to download or extract grid-apps archive."
+    SKIP_KIRIMOTO=true
+  fi
 fi
 
 # ------------------------------------------------------------
@@ -540,7 +549,7 @@ fi
 ok "PM2 daemon is responding."
 
 # ------------------------------------------------------------
-# Configuring PM2 Ecosystem
+# Configuring PM2 Ecosystem ( Conditionally registers Kiri:Moto )
 # ------------------------------------------------------------
 echo
 echo "============================================================"
@@ -554,58 +563,61 @@ done
 ECOSYSTEM_FILE="$INSTALL_DIR/ecosystem.config.js"
 
 log "Creating PM2 ecosystem configuration at $ECOSYSTEM_FILE..."
+
+# Build apps JSON array dynamically based on whether Kiri:Moto is skipped
+PM2_APPS_JSON='[
+  {
+    "name": "cncjs",
+    "script": "'$(command -v cncjs)'",
+    "args": ["--port", "'$CNCJS_PORT'"],
+    "cwd": "'$HOME'"
+  },
+  {
+    "name": "pywebcnc-fileserver",
+    "script": "file_server.py",
+    interpreter: "'$VENV_DIR'/bin/python",
+    "cwd": "'$INSTALL_DIR'",
+    "env": { "PYTHONUNBUFFERED": "1" }
+  },
+  {
+    "name": "pywebcnc-dashboard",
+    "script": "dashboard_server.sh",
+    "interpreter": "bash",
+    "cwd": "'$INSTALL_DIR'",
+    "env": { "PYTHONUNBUFFERED": "1" }
+  },
+  {
+    "name": "pywebcnc-terminal",
+    "script": "terminal_server.py",
+    "interpreter": "'$VENV_DIR'/bin/python",
+    "cwd": "'$INSTALL_DIR'",
+    "env": { "PYTHONUNBUFFERED": "1" }
+  },
+  {
+    "name": "pywebcnc-jscut",
+    "script": "python3",
+    "args": ["-m", "http.server", "8092"],
+    "cwd": "'$JSCUT_DIR'",
+    "env": { "PYTHONUNBUFFERED": "1" }
+  }'
+
+if [ "$SKIP_KIRIMOTO" = false ]; then
+  PM2_APPS_JSON="$PM2_APPS_JSON ,
+  {
+    "name": "pywebcnc-kirimoto",
+    "script": \"app.js\",
+    "args": [\"--port\", \"8091\"],
+    "cwd": \"/opt/pywebcnc/web/grid-apps\",
+    \"interpreter\": \"node\"
+  }"
+fi
+
+PM2_APPS_JSON="$PM2_APPS_JSON
+]"
+
 sudo tee "$ECOSYSTEM_FILE" > /dev/null <<EOF
 module.exports = {
-  apps: [
-  {
-    name: "cncjs",
-    script: "$(command -v cncjs)",
-    args: ["--port", "$CNCJS_PORT"],
-    cwd: "$HOME"
-  },
-  {
-    name: "pywebcnc-fileserver",
-    script: "file_server.py",
-    interpreter: "$VENV_DIR/bin/python",
-    cwd: "$INSTALL_DIR",
-    env: {
-      PYTHONUNBUFFERED: "1"
-    }
-  },
-  {
-    name: "pywebcnc-dashboard",
-    script: "dashboard_server.sh",
-    interpreter: "bash",
-    cwd: "$INSTALL_DIR",
-    env: {
-      PYTHONUNBUFFERED: "1"
-    }
-  },
-  {
-    name: "pywebcnc-terminal",
-    script: "terminal_server.py",
-    interpreter: "$VENV_DIR/bin/python",
-    cwd: "$INSTALL_DIR",
-    env: {
-      PYTHONUNBUFFERED: "1"
-    }
-  },
-  {
-    name: "pywebcnc-kirimoto",
-    script: "gs-app-server",
-    args: ["--port", "8091"],
-    cwd: "/opt/pywebcnc/web/grid-apps"
-  },
-  {
-    name: "pywebcnc-jscut",
-    script: "python3",
-    args: ["-m", "http.server", "8092"],
-    cwd: "$JSCUT_DIR",
-    env: {
-      PYTHONUNBUFFERED: "1"
-    }
-  }
-  ]
+  apps: $PM2_APPS_JSON
 };
 EOF
 
@@ -615,7 +627,6 @@ log "Starting PM2 apps via ecosystem file..."
 run pm2 start "$ECOSYSTEM_FILE" || fail "Could not start PM2 services from ecosystem file."
 
 ok "All PM2 services started."
-
 run pm2 save || fail "Could not save PM2 process list."
 
 # ------------------------------------------------------------
