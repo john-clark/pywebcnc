@@ -15,7 +15,7 @@ NGINX_SITE="/etc/nginx/sites-available/pywebcnc"
 NGINX_LINK="/etc/nginx/sites-enabled/pywebcnc"
 JSCUT_DIR="$INSTALL_DIR/jscut"
 JSCUT_VERSION="gh-pages"
-KIRIMOTO_DIR="$INSTALL_DIR/kirimoto"
+KIRIMOTO_DIR="$INSTALL_DIR/web/grid-apps"
 KIRIMOTO_VERSION="master"
 CNCJS_VERSION="1.10.3"
 CNCJS_PORT="8000"
@@ -456,13 +456,13 @@ fi
 cleanup_jscut
 
 # ------------------------------------------------------------
-# Installing Kiri:Moto (Skipped on ARMv6 due to native/WASM constraints)
+# Installing Kiri:Moto (via GridSpace grid-apps)
 # ------------------------------------------------------------
 echo "============================================================"
-echo " Installing Kiri:Moto via @gridspace/app-server"
+echo " Installing Kiri:Moto / grid-apps"
 echo "============================================================"
 
-GRID_APPS_DIR="/opt/pywebcnc/web/grid-apps"
+GRID_APPS_DIR="$INSTALL_DIR/web/grid-apps"
 SKIP_KIRIMOTO=false
 
 if [[ "$CPU_TYPE" == "armv6" ]]; then
@@ -470,33 +470,49 @@ if [[ "$CPU_TYPE" == "armv6" ]]; then
   SKIP_KIRIMOTO=true
 else
   KIRIMOTO_URL="https://github.com/GridSpace/grid-apps/archive/refs/heads/master.zip"
-  TMP_KIRI="/tmp/grid-apps"
+  TMP_KIRI="$(mktemp -d)"
 
-  log "Downloading and installing grid-apps for Kiri:Moto..."
-  rm -rf "$TMP_KIRI"
-  mkdir -p "$TMP_KIRI"
-  
-  if curl -L "$KIRIMOTO_URL" -o "$TMP_KIRI/master.zip" && unzip -q "$TMP_KIRI/master.zip" -d "$TMP_KIRI"; then
-    SRC_DIR="$TMP_KIRI/grid-apps-master"
-    if [[ -d "$SRC_DIR" ]]; then
-      sudo rm -rf "$GRID_APPS_DIR"
-      sudo mkdir -p "$GRID_APPS_DIR"
-      sudo cp -a "$SRC_DIR/." "$GRID_APPS_DIR/"
-      
-      log "Installing grid-apps dependencies with workspace support..."
-      cd "$GRID_APPS_DIR"
-      npm install --include-workspace-root || npm install --legacy-peer-deps
-      
-      sudo chown -R "$(id -u):$(id -g)" "$GRID_APPS_DIR"
-      ok "Kiri:Moto grid-apps installed in $GRID_APPS_DIR"
+  log "Downloading grid-apps for Kiri:Moto..."
+  if run curl -fL --retry 3 --connect-timeout 15 "$KIRIMOTO_URL" -o "$TMP_KIRI/master.zip"; then
+    if run unzip -q "$TMP_KIRI/master.zip" -d "$TMP_KIRI"; then
+      SRC_DIR="$TMP_KIRI/grid-apps-master"
+      if [[ -d "$SRC_DIR" ]]; then
+        sudo rm -rf "$GRID_APPS_DIR"
+        sudo mkdir -p "$GRID_APPS_DIR"
+        run sudo cp -a "$SRC_DIR/." "$GRID_APPS_DIR/"
+        
+        log "Installing grid-apps npm dependencies..."
+        cd "$GRID_APPS_DIR"
+        run sudo npm install --ignore-scripts || run sudo npm install --legacy-peer-deps --ignore-scripts
+        
+        if [[ -d "node_modules/esbuild" || -d "node_modules/@gridspace/raster-path/node_modules/esbuild" ]]; then
+          log "Building raster-path workspace..."
+          npm explore @gridspace/raster-path -- npm run build || true
+        else
+          warn "esbuild missing from root; bypassing optional raster-path shader build."
+        fi
+
+        run sudo chown -R "$(id -u):$(id -g)" "$GRID_APPS_DIR"
+        ok "Kiri:Moto grid-apps installed in $GRID_APPS_DIR"
+      else
+        warn "Extracted grid-apps source directory missing."
+        SKIP_KIRIMOTO=true
+      fi
     else
-      warn "Extracted grid-apps source directory missing."
+      warn "Failed to extract grid-apps archive."
       SKIP_KIRIMOTO=true
     fi
   else
-    warn "Failed to download or extract grid-apps archive."
+    warn "Failed to download grid-apps archive."
     SKIP_KIRIMOTO=true
   fi
+  rm -rf "$TMP_KIRI"
+fi
+
+# Link validation symlink for verification checks
+if [[ "$SKIP_KIRIMOTO" = false ]]; then
+  sudo rm -f "$KIRIMOTO_DIR"
+  sudo ln -sfn "$GRID_APPS_DIR" "$KIRIMOTO_DIR"
 fi
 
 # ------------------------------------------------------------
@@ -707,10 +723,10 @@ else
 fi
 
 log "Checking local Kiri:Moto..."
-if [[ -s "$KIRIMOTO_DIR/index.html" ]]; then
+if [[ -s "$KIRIMOTO_DIR/app.js" || -s "$KIRIMOTO_DIR/index.html" ]]; then
   ok "Kiri:Moto application is installed."
 else
-  warn "Kiri:Moto application page is missing."
+  warn "Kiri:Moto application files are missing."
 fi
 
 # ------------------------------------------------------------
