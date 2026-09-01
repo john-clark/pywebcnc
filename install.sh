@@ -540,48 +540,70 @@ fi
 ok "PM2 daemon is responding."
 
 # ------------------------------------------------------------
-# PM2 services
+# Configuring PM2 Ecosystem
 # ------------------------------------------------------------
 echo
 echo "============================================================"
 echo " Configuring pywebcnc PM2 services"
 echo "============================================================"
 
+# Stop and delete any existing instances
 for APP in cncjs pywebcnc-fileserver pywebcnc-dashboard pywebcnc-terminal; do
     pm2 delete "$APP" >/dev/null 2>&1 || true
 done
 
-run pm2 start cncjs --name cncjs --cwd "$HOME" -- --port "$CNCJS_PORT" || fail "Could not start CNCjs service."
-run pm2 start "$INSTALL_DIR/file_server.py" --name pywebcnc-fileserver --cwd "$INSTALL_DIR" --interpreter python3 || fail "Could not start file server."
-run pm2 start "$INSTALL_DIR/dashboard_server.sh" --name pywebcnc-dashboard --cwd "$INSTALL_DIR" || fail "Could not start dashboard service."
-run pm2 start "$VENV_DIR/bin/python" --name pywebcnc-terminal --cwd "$INSTALL_DIR" -- "$INSTALL_DIR/terminal_server.py" || fail "Could not start terminal service."
+# Generate the ecosystem configuration file dynamically
+ECOSYSTEM_FILE="$INSTALL_DIR/ecosystem.config.js"
 
-ok "CNCjs PM2 service started on port $CNCJS_PORT."
-ok "File server PM2 service started on port $FILESERVER_PORT."
-ok "Dashboard PM2 service started."
-ok "Terminal PM2 service started."
+log "Creating PM2 ecosystem configuration at $ECOSYSTEM_FILE..."
+sudo tee "$ECOSYSTEM_FILE" > /dev/null <<EOF
+module.exports = {
+  apps: [
+    {
+      name: "cncjs",
+      script: "$(command -v cncjs)",
+      args: ["--port", "$CNCJS_PORT"],
+      cwd: "$HOME"
+    },
+    {
+      name: "pywebcnc-fileserver",
+      script: "file_server.py",
+      interpreter: "python3",
+      cwd: "$INSTALL_DIR",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      }
+    },
+    {
+      name: "pywebcnc-dashboard",
+      script: "dashboard_server.sh",
+      interpreter: "bash",
+      cwd: "$INSTALL_DIR",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      }
+    },
+    {
+      name: "pywebcnc-terminal",
+      script: "terminal_server.py",
+      interpreter: "$VENV_DIR/bin/python",
+      cwd: "$INSTALL_DIR",
+      env: {
+        PYTHONUNBUFFERED: "1"
+      }
+    }
+  ]
+};
+EOF
+
+run sudo chown "$(id -u):$(id -g)" "$ECOSYSTEM_FILE" || fail "Could not set ownership on ecosystem file."
+
+log "Starting PM2 apps via ecosystem file..."
+run pm2 start "$ECOSYSTEM_FILE" || fail "Could not start PM2 services from ecosystem file."
+
+ok "All PM2 services started successfully."
 
 run pm2 save || fail "Could not save PM2 process list."
-
-# Configure PM2 boot startup when available.
-if ! systemctl is-enabled "pm2-${CURRENT_USER}" >/dev/null 2>&1; then
-    log "Generating PM2 startup instructions..."
-    PM2_STARTUP_OUTPUT="$(pm2 startup systemd -u "$CURRENT_USER" --hp "$HOME" 2>&1 || true)"
-    STARTUP_COMMAND="$(printf '%s\n' "$PM2_STARTUP_OUTPUT" | grep -E '^sudo .+pm2 startup|^sudo env .+pm2 startup' | tail -n 1 || true)"
-
-    if [[ -n "$STARTUP_COMMAND" ]]; then
-        echo
-        echo "[ACTION] Run this command once to enable PM2 at boot:"
-        echo
-        echo "  $STARTUP_COMMAND"
-        echo
-        warn "The installer does not execute this privileged PM2 startup command automatically."
-    else
-        warn "PM2 did not provide a startup command. Run 'pm2 startup' manually if boot startup is required."
-    fi
-else
-    ok "PM2 startup service already enabled for $CURRENT_USER."
-fi
 
 # ------------------------------------------------------------
 # Final verification
