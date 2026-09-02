@@ -481,19 +481,23 @@ else
         sudo mkdir -p "$GRID_APPS_DIR"
         run sudo cp -a "$SRC_DIR/." "$GRID_APPS_DIR/"
         
-        log "Installing grid-apps npm dependencies..."
+        log "Installing grid-apps npm dependencies and building production bundles..."
         cd "$GRID_APPS_DIR"
-        run sudo npm install --ignore-scripts || run sudo npm install --legacy-peer-deps --ignore-scripts
         
-        if [[ -d "node_modules/esbuild" || -d "node_modules/@gridspace/raster-path/node_modules/esbuild" ]]; then
-          log "Building raster-path workspace..."
-          npm explore @gridspace/raster-path -- npm run build || true
-        else
-          warn "esbuild missing from root; bypassing optional raster-path shader build."
-        fi
+        # Correctly execute the full setup and production build sequence
+        run npm run setup || run sudo npm run setup
+        run npm run pack-prod || run sudo npm run pack-prod
 
+        # Fix ownership so user processes can write logs/caches cleanly
         run sudo chown -R "$(id -u):$(id -g)" "$GRID_APPS_DIR"
-        ok "Kiri:Moto grid-apps installed in $GRID_APPS_DIR"
+        
+        # Register and start the app-server via PM2 on port 8091
+        log "Configuring PM2 service for Kiri:Moto app server..."
+        pm2 delete pywebcnc-kirimoto || true
+        pm2 start npx --name "pywebcnc-kirimoto" -- @gridspace/app-server --port 8091
+        pm2 save
+
+        ok "Kiri:Moto grid-apps installed and running in $GRID_APPS_DIR"
       else
         warn "Extracted grid-apps source directory missing."
         SKIP_KIRIMOTO=true
