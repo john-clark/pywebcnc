@@ -626,10 +626,10 @@ module.exports = {
     }$([ "$SKIP_KIRIMOTO" = false ] && echo ",
     {
       name: \"pywebcnc-kirimoto\",
-      script: \"app.js\",
-      args: [\"--port\", \"8091\"],
+      script: \"npx\",
+      args: [\"@gridspace/app-server\", \"--port\", \"8091\"],
       cwd: \"/opt/pywebcnc/web/grid-apps\",
-      interpreter: \"node\"
+      interpreter: \"none\"
     }")
   ]
 };
