@@ -2,6 +2,8 @@
 
 A small web dashboard for a Raspberry Pi CNC controller.
 
+![image](/image/cnc.gif)
+
 ## What it installs
 
 - Python dashboard on port 8080
