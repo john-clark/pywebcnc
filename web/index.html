@@ -158,12 +158,45 @@
 
     <div class="content">
         <div id="home" class="panel active">
-            <!-- ... your existing home content stays exactly the same ... -->
             <div class="home">
                 <div class="home-container">
                     <div class="home-title">CNC Dashboard</div>
                     <div class="home-subtitle">Web-based control and management interface for the CNC machine.</div>
-                    <!-- ... rest of home cards unchanged ... -->
+                    <div class="info-grid">
+                        <div class="card">
+                            <div class="card-title">Controller</div>
+                            <div class="card-text">
+                                <strong>BTT SKR Pico</strong><br />RP2040 CNC controller<br /><br /><span class="status">Connected</span>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">Firmware</div>
+                            <div class="card-text">
+                                <strong>grblHAL</strong><br />CNC motion-control firmware<br /><br /><span class="status">Ready</span>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">CNCjs</div>
+                            <div class="card-text">
+                                Web-based CNC control, G-code sender, and machine interface.<br /><br /><span class="status">Available</span>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-title">File Server</div>
+                            <div class="card-text">
+                                Access and manage CNC programs and files from the Files tab.<br /><br /><span class="status">Available</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">About This System</div>
+                        <div class="description">
+                            This Raspberry Pi provides the web interface for the CNC system.<br /><br />The Raspberry Pi communicates with the BTT SKR Pico, which runs grblHAL and controls the CNC machine.<br /><br /><strong>CNCjs</strong> provides the machine-control interface.<br /><strong>Files</strong> provides access to stored G-code and other CNC files.<br /><strong>Terminal</strong> provides a web-based DietPi terminal running under the <strong>dietpi</strong> account.
+                        </div>
+                    </div>
+                    <div class="footer">
+                        Raspberry Pi CNC Controller &nbsp;•&nbsp; BTT SKR Pico &nbsp;•&nbsp; grblHAL
+                    </div>
                 </div>
             </div>
         </div>

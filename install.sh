@@ -480,6 +480,16 @@ else
         sudo rm -rf "$GRID_APPS_DIR"
         sudo mkdir -p "$GRID_APPS_DIR"
         run sudo cp -a "$SRC_DIR/." "$GRID_APPS_DIR/"
+
+        KIRI_SOURCE_FILE="$GRID_APPS_DIR/src/main/kiri.js"
+        if [[ ! -s "$KIRI_SOURCE_FILE" ]]; then
+          fail "Kiri:Moto source file is missing: $KIRI_SOURCE_FILE"
+        fi
+        if grep -qF "let bootctrl = navigator.serviceWorker.controller;" "$KIRI_SOURCE_FILE"; then
+          run sudo sed -i "s/let bootctrl = navigator\.serviceWorker\.controller;/let bootctrl = navigator.serviceWorker ? navigator.serviceWorker.controller : null;/" "$KIRI_SOURCE_FILE"
+        fi
+        grep -qF "let bootctrl = navigator.serviceWorker ? navigator.serviceWorker.controller : null;" "$KIRI_SOURCE_FILE" || fail "Could not patch Kiri:Moto service-worker controller in $KIRI_SOURCE_FILE"
+        ok "Patched Kiri:Moto service-worker controller."
         
         log "Installing grid-apps npm dependencies and building production bundles..."
         cd "$GRID_APPS_DIR"
@@ -653,8 +663,6 @@ echo "============================================================"
 
 log "Waiting for services to start up..."
 sleep 10
-log "Checking PM2 services..."
-pm2 status
 
 python3 -c '
 import subprocess, json, sys
